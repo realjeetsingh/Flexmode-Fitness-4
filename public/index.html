@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FlexMode — Starter Bundle</title>
+  <style>
+    :root{--accent:#D4AF37;--bg:#0b0b0b;--muted:#bfc3c7;font-family:Inter,Segoe UI,Arial,sans-serif}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#050505 0%, #0b0b0b 100%);color:white}
+    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+    .card{width:980px;max-width:100%;display:grid;grid-template-columns:1fr 380px;gap:20px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);border-radius:14px;padding:26px;box-shadow:0 10px 40px rgba(0,0,0,0.6)}
+    .left{padding:6px}
+    h1{margin:0;font-size:28px;letter-spacing:0.2px}
+    p.lead{color:var(--muted);margin-top:8px}
+    .features{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap}
+    .feat{background:rgba(255,255,255,0.02);padding:10px 12px;border-radius:8px;font-size:13px;color:var(--muted)}
+    .product{background:linear-gradient(90deg,rgba(212,175,55,0.08),transparent);border-radius:10px;padding:18px}
+    .price{font-size:34px;margin:6px 0}
+    .small{font-size:13px;color:var(--muted)}
+    .cta{display:flex;flex-direction:column;gap:8px}
+    button.cta-btn{background:var(--accent);border:0;padding:12px;border-radius:10px;color:#000;font-weight:700;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);padding:10px;border-radius:10px;cursor:pointer}
+    #status{font-size:13px;color:var(--muted);margin-top:10px}
+    .spinner{display:inline-block;width:18px;height:18px;border-radius:50%;border:3px solid rgba(255,255,255,0.08);border-top-color:var(--accent);animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:900px){.card{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="main" aria-labelledby="title">
+      <div class="left">
+        <h1 id="title">FlexMode Starter Bundle</h1>
+        <p class="lead">6-week structured programs (Beginner + Intermediate) + Nutrition guide. Instant access after payment.</p>
+
+        <div class="features" aria-hidden="false">
+          <div class="feat">RPE-based progression</div>
+          <div class="feat">Home & Gym versions</div>
+          <div class="feat">Weekly templates</div>
+          <div class="feat">Progress tracker</div>
+        </div>
+
+        <section style="margin-top:18px">
+          <h3 style="margin:0 0 8px 0">What you get</h3>
+          <ul style="margin:0;padding-left:18px;color:var(--muted)">
+            <li>Beginner plan (PDF)</li>
+            <li>Intermediate plan (PDF)</li>
+            <li>Nutrition guide (PDF)</li>
+            <li>Quick start checklist</li>
+          </ul>
+        </section>
+
+      </div>
+
+      <aside class="product" aria-label="Purchase">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="small">FlexMode Starter Bundle</div>
+            <div class="price">₹499</div>
+            <div class="small">One-time payment — instant download</div>
+          </div>
+          <div style="text-align:right">
+            <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='72' height='72'><rect rx='12' width='72' height='72' fill='%23D4AF37'/></svg>" alt="" style="width:64px;height:64px;border-radius:8px"/>
+          </div>
+        </div>
+
+        <div class="cta" style="margin-top:16px">
+          <button id="buyBtn" class="cta-btn" aria-live="polite">Buy & Download PDF</button>
+          <button id="demoBtn" class="ghost">Preview sample (free)</button>
+          <div id="status" aria-live="polite"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const SERVER_BASE = location.origin;
+    const PRODUCT = { id: "flexmode-starter", priceINR: 499, name: "FlexMode Starter Bundle" };
+    const buyBtn = document.getElementById('buyBtn');
+    const status = document.getElementById('status');
+    const demoBtn = document.getElementById('demoBtn');
+
+    function setStatus(msg, busy=false){
+      status.innerHTML = busy ? '<span class="spinner" aria-hidden="true"></span> ' + msg : msg;
+    }
+
+    demoBtn.addEventListener('click', ()=> {
+      window.open('/sample/flexmode-sample.pdf', '_blank');
+    });
+
+    buyBtn.addEventListener('click', async () => {
+      buyBtn.disabled = true;
+      setStatus('Creating order...', true);
+
+      try {
+        const resp = await fetch(SERVER_BASE + '/create-order', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ productId: PRODUCT.id, amount: PRODUCT.priceINR })
+        });
+        if(!resp.ok) throw new Error('Order creation failed');
+        const order = await resp.json();
+
+        const options = {
+          key: order.key_id,
+          amount: order.amount,
+          currency: order.currency,
+          name: PRODUCT.name,
+          description: "Instant PDF after payment",
+          order_id: order.id,
+          handler: async function(response){
+            setStatus('Verifying payment...', true);
+            try{
+              const verifyResp = await fetch(SERVER_BASE + '/verify-payment', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  productId: PRODUCT.id,
+                  email: ''
+                })
+              });
+              const data = await verifyResp.json();
+              if(!verifyResp.ok || !data.success) throw new Error(data.error || 'Verification failed');
+
+              setStatus('Payment verified. Download will start...', true);
+              const a = document.createElement('a');
+              a.href = data.downloadUrl;
+              a.target = '_blank';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              setStatus('Download triggered. Check downloads folder.');
+            } catch(err){
+              console.error(err);
+              setStatus('Verification error: ' + err.message);
+            } finally {
+              buyBtn.disabled = false;
+            }
+          },
+          modal: { ondismiss: function(){ setStatus('Payment cancelled'); buyBtn.disabled = false; } },
+          prefill: { name: "", email: "" },
+          theme: { color: "#D4AF37" }
+        };
+
+        if(typeof Razorpay === 'undefined'){
+          setStatus('Loading payment engine...', true);
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = "https://checkout.razorpay.com/v1/checkout.js";
+            s.async = true;
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+
+        setStatus('Opening payment window...', true);
+        new Razorpay(options).open();
+
+      } catch(err){
+        console.error(err);
+        setStatus('Error: ' + (err.message || 'unknown'));
+        buyBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
